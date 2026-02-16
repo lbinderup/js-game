@@ -28,6 +28,7 @@ export class MiningPlanner {
 
     if (markedBlocks.length === 0) {
       this.minerManager.assignResourcePiles(resourcePiles);
+      this.minerManager.assignDropoffsForLoadedMiners(resourcePiles);
     }
   }
 }

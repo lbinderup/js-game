@@ -82,6 +82,17 @@ export class Miner {
     this.state = WALKING;
   }
 
+  assignDropoff(pathToDropoff) {
+    if (!this.canAcceptTask() || this.inventoryLoad <= 0) {
+      return;
+    }
+
+    this.path = pathToDropoff;
+    this.pathPurpose = 'dropoff';
+    this.pathIndex = 0;
+    this.state = HAULING;
+  }
+
   clearTarget() {
     this.targetBlock = null;
     this.targetPile = null;
@@ -97,6 +108,11 @@ export class Miner {
   update(deltaSeconds) {
     if (this.targetPile) {
       this.updateHauling(deltaSeconds);
+      return;
+    }
+
+    if (this.pathPurpose === 'dropoff') {
+      this.updateDropoff(deltaSeconds);
       return;
     }
 
@@ -179,21 +195,33 @@ export class Miner {
         this.inventoryLoad += amountTaken;
       }
 
-      this.path = this.dropoffPath ?? [];
-      this.pathPurpose = 'dropoff';
-      this.pathIndex = 0;
+      this.targetPile = null;
+      if (this.inventoryLoad >= this.getCarryCapacity()) {
+        this.path = this.dropoffPath ?? [];
+        this.pathPurpose = 'dropoff';
+        this.pathIndex = 0;
+      } else {
+        this.path = [];
+        this.pathPurpose = null;
+        this.pathIndex = 0;
+        this.state = IDLE;
+      }
+      return;
+    }
+  }
+
+  updateDropoff(deltaSeconds) {
+    const reachedDropoff = this.followPath(deltaSeconds, HAULING);
+    if (!reachedDropoff) {
       return;
     }
 
-    const reachedDropoff = this.followPath(deltaSeconds, HAULING);
-    if (reachedDropoff) {
-      if (this.inventoryLoad > 0 && this.onResourceDelivered) {
-        this.onResourceDelivered(this, { ...this.inventory });
-      }
-      this.inventory = { goldOre: 0, ironOre: 0, rock: 0 };
-      this.inventoryLoad = 0;
-      this.clearTarget();
+    if (this.inventoryLoad > 0 && this.onResourceDelivered) {
+      this.onResourceDelivered(this, { ...this.inventory });
     }
+    this.inventory = { goldOre: 0, ironOre: 0, rock: 0 };
+    this.inventoryLoad = 0;
+    this.clearTarget();
   }
 
   followPath(deltaSeconds, moveState) {

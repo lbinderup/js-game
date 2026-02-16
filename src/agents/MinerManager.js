@@ -165,7 +165,7 @@ export class MinerManager {
   }
 
   getAvailableCollectors() {
-    return this.miners.filter((miner) => miner.canAcceptTask() && miner.inventoryLoad === 0);
+    return this.miners.filter((miner) => miner.canAcceptTask() && miner.inventoryLoad < miner.getCarryCapacity());
   }
 
   assignBlocks(blocks) {
@@ -244,6 +244,29 @@ export class MinerManager {
 
       if (chosenMiner && chosenToPile && chosenToDropoff && pile.claim()) {
         chosenMiner.assignPile(pile, chosenToPile, chosenToDropoff, this.dropoffCell);
+      }
+    }
+  }
+
+  assignDropoffsForLoadedMiners(piles) {
+    if (!this.dropoffCell) {
+      return;
+    }
+
+    const hasFreePiles = piles.some((pile) => !pile.isCollected && !pile.isClaimed);
+    for (const miner of this.miners) {
+      if (!miner.canAcceptTask() || miner.inventoryLoad <= 0) {
+        continue;
+      }
+
+      const shouldDropoff = miner.inventoryLoad >= miner.getCarryCapacity() || !hasFreePiles;
+      if (!shouldDropoff) {
+        continue;
+      }
+
+      const pathToDropoff = this.findPathToCell(miner, this.dropoffCell);
+      if (pathToDropoff) {
+        miner.assignDropoff(pathToDropoff);
       }
     }
   }
