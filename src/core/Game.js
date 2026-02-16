@@ -43,11 +43,16 @@ export class Game {
       x: this.blockGrid.layout.dropoff.startX,
       z: this.blockGrid.layout.dropoff.startZ,
     };
+    const barracksCell = {
+      x: this.blockGrid.layout.barracks.startX,
+      z: this.blockGrid.layout.barracks.startZ,
+    };
 
     this.minerManager = new MinerManager(this.scene, this.blockGrid, GAME_CONFIG.miners, {
       dropoffCell,
+      barracksCell,
       onBlockMined: (block) => this.handleBlockMined(block),
-      onResourceDelivered: (pile) => this.handleResourceDelivered(pile),
+      onResourceDelivered: (miner, inventory) => this.handleResourceDelivered(miner, inventory),
       onMinerLevelUp: () => this.ui.showFloatingText('Level Up!', '#7bed9f'),
     });
     this.minerManager.createMiners();
@@ -210,10 +215,22 @@ export class Game {
     this.scene.add(pile.mesh);
   }
 
-  handleResourceDelivered(pile) {
-    this.resources[pile.resource] = (this.resources[pile.resource] ?? 0) + pile.amount;
+  handleResourceDelivered(miner, inventory) {
+    const labels = {
+      goldOre: 'Gold Ore',
+      ironOre: 'Iron Ore',
+      rock: 'Rock',
+    };
+
+    for (const [resource, amount] of Object.entries(inventory)) {
+      if (!amount) {
+        continue;
+      }
+      this.resources[resource] = (this.resources[resource] ?? 0) + amount;
+      this.ui.showFloatingText(`${miner.name}: +${amount} ${labels[resource] ?? resource}`, '#f1c40f');
+    }
+
     this.ui.setResources(this.resources);
-    this.ui.showFloatingText(`+${pile.amount} ${pile.label}`, '#f1c40f');
     this.ui.updateHireCost(this.getHireCost(), this.resources.goldOre);
     this.resourcePiles = this.resourcePiles.filter((entry) => !entry.isCollected);
   }

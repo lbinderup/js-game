@@ -4,6 +4,8 @@ const IDLE = 'idle';
 const WALKING = 'walking';
 const MINING = 'mining';
 const HAULING = 'hauling';
+const RETURNING = 'returning';
+const RESTING = 'resting';
 
 export class Miner {
   constructor({ id, spawnPosition, baseStrength, baseSpeed, levelThresholds }) {
@@ -25,11 +27,18 @@ export class Miner {
     this.targetPile = null;
     this.haulDropoffCell = null;
     this.path = [];
+    this.pathPurpose = null;
     this.pathIndex = 0;
     this.mineTimer = 0;
     this.onBlockMined = null;
     this.onResourceDelivered = null;
     this.onLevelUp = null;
+    this.inventory = {
+      goldOre: 0,
+      ironOre: 0,
+      rock: 0,
+    };
+    this.inventoryLoad = 0;
 
     const body = new THREE.CapsuleGeometry(0.25, 0.6, 4, 8);
     const material = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
@@ -41,7 +50,15 @@ export class Miner {
   }
 
   isIdle() {
-    return this.state === IDLE;
+    return this.state === IDLE || this.state === RESTING;
+  }
+
+  canAcceptTask() {
+    return !this.targetBlock && !this.targetPile;
+  }
+
+  getCarryCapacity() {
+    return Math.max(1, Math.floor(this.stats.strength));
   }
 
   assignBlock(block, path) {
@@ -49,6 +66,7 @@ export class Miner {
     this.haulDropoffCell = null;
     this.targetBlock = block;
     this.path = path;
+    this.pathPurpose = 'mine';
     this.pathIndex = 0;
     this.state = WALKING;
   }
@@ -56,7 +74,9 @@ export class Miner {
   assignPile(pile, pathToPile, pathToDropoff, dropoffCell) {
     this.targetBlock = null;
     this.targetPile = pile;
-    this.path = [...pathToPile, ...pathToDropoff];
+    this.path = pathToPile;
+    this.pathPurpose = 'pickup';
+    this.dropoffPath = pathToDropoff;
     this.pathIndex = 0;
     this.haulDropoffCell = dropoffCell;
     this.state = WALKING;
@@ -67,12 +87,19 @@ export class Miner {
     this.targetPile = null;
     this.haulDropoffCell = null;
     this.path = [];
+    this.pathPurpose = null;
+    this.dropoffPath = null;
     this.pathIndex = 0;
     this.state = IDLE;
     this.mineTimer = 0;
   }
 
   update(deltaSeconds) {
+    if (this.pathPurpose === 'returnToBarracks') {
+      this.followPath(deltaSeconds, RETURNING);
+      return;
+    }
+
     if (this.targetPile) {
       this.updateHauling(deltaSeconds);
       return;
@@ -126,14 +153,44 @@ export class Miner {
       return;
     }
 
+    if (this.pathPurpose === 'pickup') {
+      const reachedPickup = this.followPath(deltaSeconds, HAULING);
+      if (!reachedPickup) {
+        return;
+      }
+
+      const freeCapacity = this.getCarryCapacity() - this.inventoryLoad;
+      const amountTaken = this.targetPile.takeAmount(freeCapacity);
+      if (amountTaken > 0) {
+        this.inventory[this.targetPile.resource] += amountTaken;
+        this.inventoryLoad += amountTaken;
+      }
+
+      this.path = this.dropoffPath ?? [];
+      this.pathPurpose = 'dropoff';
+      this.pathIndex = 0;
+      return;
+    }
+
+    const reachedDropoff = this.followPath(deltaSeconds, HAULING);
+    if (reachedDropoff) {
+      if (this.inventoryLoad > 0 && this.onResourceDelivered) {
+        this.onResourceDelivered(this, { ...this.inventory });
+      }
+      this.inventory = { goldOre: 0, ironOre: 0, rock: 0 };
+      this.inventoryLoad = 0;
+      this.clearTarget();
+    }
+  }
+
+  followPath(deltaSeconds, moveState) {
     const targetWaypoint = this.path[this.pathIndex];
     if (!targetWaypoint) {
-      if (this.onResourceDelivered) {
-        this.onResourceDelivered(this.targetPile);
+      if (this.pathPurpose === 'returnToBarracks') {
+        this.pathPurpose = null;
+        this.state = RESTING;
       }
-      this.targetPile.collect();
-      this.clearTarget();
-      return;
+      return true;
     }
 
     const destination = targetWaypoint.clone();
@@ -141,13 +198,25 @@ export class Miner {
     const distance = this.mesh.position.distanceTo(destination);
     if (distance < 0.1) {
       this.pathIndex += 1;
-      return;
+      return false;
     }
 
-    this.state = HAULING;
+    this.state = moveState;
     const direction = destination.sub(this.mesh.position).normalize();
     this.mesh.position.addScaledVector(direction, this.stats.speed * deltaSeconds);
     this.mesh.lookAt(targetWaypoint.x, this.mesh.position.y, targetWaypoint.z);
+    return false;
+  }
+
+  assignReturnPath(path) {
+    if (!this.canAcceptTask() || path.length === 0) {
+      return;
+    }
+
+    this.path = path;
+    this.pathPurpose = 'returnToBarracks';
+    this.pathIndex = 0;
+    this.state = RETURNING;
   }
 
   hitTarget() {
@@ -204,4 +273,6 @@ export const MINER_STATES = {
   WALKING,
   MINING,
   HAULING,
+  RETURNING,
+  RESTING,
 };

@@ -33,9 +33,19 @@ export class ResourcePile {
     this.isClaimed = false;
   }
 
-  collect() {
-    this.isCollected = true;
+  takeAmount(requestedAmount) {
+    if (this.isCollected || requestedAmount <= 0) {
+      return 0;
+    }
+
+    const taken = Math.min(this.amount, requestedAmount);
+    this.amount -= taken;
+    if (this.amount <= 0) {
+      this.isCollected = true;
+      this.mesh.visible = false;
+    }
+
     this.isClaimed = false;
-    this.mesh.visible = false;
+    return taken;
   }
 }

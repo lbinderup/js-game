@@ -115,6 +115,9 @@ export class UIController {
       <li>State: ${m.state}</li>
       <li>Strength: ${m.stats.strength.toFixed(1)}</li>
       <li>Speed: ${m.stats.speed.toFixed(1)}</li>
+      <li>Carry Capacity: ${m.getCarryCapacity()}</li>
+      <li>Inventory Load: ${m.inventoryLoad}</li>
+      <li>Inventory: Gold ${m.inventory.goldOre}, Iron ${m.inventory.ironOre}, Rock ${m.inventory.rock}</li>
       <li>Total Hits: ${m.stats.totalHits}</li>
       <li>Blocks Mined: ${m.stats.blocksMined}</li>
       <li>Unspent Level Ups: ${m.unspentLevels}</li>
