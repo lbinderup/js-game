@@ -164,6 +164,10 @@ export class MinerManager {
     return this.miners.filter((miner) => miner.canAcceptTask());
   }
 
+  getAvailableCollectors() {
+    return this.miners.filter((miner) => miner.canAcceptTask() && miner.inventoryLoad === 0);
+  }
+
   assignBlocks(blocks) {
     for (const block of blocks) {
       const alreadyAssigned = this.miners.some((miner) => miner.targetBlock === block);
@@ -206,7 +210,7 @@ export class MinerManager {
         continue;
       }
 
-      const availableMiners = this.getAvailableMiners();
+      const availableMiners = this.getAvailableCollectors();
       if (availableMiners.length === 0) {
         return;
       }
@@ -283,7 +287,7 @@ export class MinerManager {
     }
 
     for (const miner of this.miners) {
-      if (!miner.isIdle() || !miner.canAcceptTask()) {
+      if (!miner.isIdle() || !miner.canAcceptTask() || miner.inventoryLoad > 0) {
         continue;
       }
 

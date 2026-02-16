@@ -95,16 +95,24 @@ export class Miner {
   }
 
   update(deltaSeconds) {
-    if (this.pathPurpose === 'returnToBarracks') {
-      this.followPath(deltaSeconds, RETURNING);
-      return;
-    }
-
     if (this.targetPile) {
       this.updateHauling(deltaSeconds);
       return;
     }
 
+    if (this.targetBlock) {
+      this.updateMining(deltaSeconds);
+      return;
+    }
+
+    if (this.pathPurpose === 'returnToBarracks') {
+      this.followPath(deltaSeconds, RETURNING);
+      return;
+    }
+  }
+
+  updateMining(deltaSeconds) {
+    
     if (!this.targetBlock || this.targetBlock.isMined || !this.targetBlock.isMarkedForMining) {
       this.clearTarget();
       return;
@@ -148,7 +156,12 @@ export class Miner {
   }
 
   updateHauling(deltaSeconds) {
-    if (!this.targetPile || this.targetPile.isCollected) {
+    if (!this.targetPile) {
+      this.clearTarget();
+      return;
+    }
+
+    if (this.pathPurpose === 'pickup' && this.targetPile.isCollected) {
       this.clearTarget();
       return;
     }
@@ -209,7 +222,7 @@ export class Miner {
   }
 
   assignReturnPath(path) {
-    if (!this.canAcceptTask() || path.length === 0) {
+    if (!this.canAcceptTask() || path.length === 0 || this.inventoryLoad > 0) {
       return;
     }
 

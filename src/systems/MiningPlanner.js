@@ -25,6 +25,9 @@ export class MiningPlanner {
   update(resourcePiles = []) {
     const markedBlocks = this.blockGrid.getMarkedBlocks();
     this.minerManager.assignBlocks(markedBlocks);
-    this.minerManager.assignResourcePiles(resourcePiles);
+
+    if (markedBlocks.length === 0) {
+      this.minerManager.assignResourcePiles(resourcePiles);
+    }
   }
 }
