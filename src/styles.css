@@ -28,7 +28,8 @@ body {
 
 #ui-panel,
 #miner-inspector,
-#level-screen {
+#level-screen,
+#barracks-window {
   position: absolute;
   background: rgba(0, 0, 0, 0.75);
   border: 1px solid #3f4a54;
@@ -53,6 +54,51 @@ body {
   right: 16px;
   bottom: 16px;
   width: 280px;
+}
+
+#barracks-window {
+  right: 16px;
+  top: 16px;
+  width: 260px;
+}
+
+#resource-counters {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #3f4a54;
+}
+
+#floating-text-root {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.floating-text {
+  text-align: center;
+  font-weight: 700;
+  animation: rise-fade 1.4s ease forwards;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+}
+
+@keyframes rise-fade {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-36px);
+    opacity: 0;
+  }
 }
 
 button {

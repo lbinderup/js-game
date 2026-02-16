@@ -3,6 +3,7 @@ import * as THREE from 'three';
 const IDLE = 'idle';
 const WALKING = 'walking';
 const MINING = 'mining';
+const HAULING = 'hauling';
 
 export class Miner {
   constructor({ id, spawnPosition, baseStrength, baseSpeed, levelThresholds }) {
@@ -21,10 +22,14 @@ export class Miner {
     this.levelThresholds = levelThresholds;
     this.state = IDLE;
     this.targetBlock = null;
+    this.targetPile = null;
+    this.haulDropoffCell = null;
     this.path = [];
     this.pathIndex = 0;
     this.mineTimer = 0;
     this.onBlockMined = null;
+    this.onResourceDelivered = null;
+    this.onLevelUp = null;
 
     const body = new THREE.CapsuleGeometry(0.25, 0.6, 4, 8);
     const material = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
@@ -40,14 +45,27 @@ export class Miner {
   }
 
   assignBlock(block, path) {
+    this.targetPile = null;
+    this.haulDropoffCell = null;
     this.targetBlock = block;
     this.path = path;
     this.pathIndex = 0;
     this.state = WALKING;
   }
 
+  assignPile(pile, pathToPile, pathToDropoff, dropoffCell) {
+    this.targetBlock = null;
+    this.targetPile = pile;
+    this.path = [...pathToPile, ...pathToDropoff];
+    this.pathIndex = 0;
+    this.haulDropoffCell = dropoffCell;
+    this.state = WALKING;
+  }
+
   clearTarget() {
     this.targetBlock = null;
+    this.targetPile = null;
+    this.haulDropoffCell = null;
     this.path = [];
     this.pathIndex = 0;
     this.state = IDLE;
@@ -55,6 +73,11 @@ export class Miner {
   }
 
   update(deltaSeconds) {
+    if (this.targetPile) {
+      this.updateHauling(deltaSeconds);
+      return;
+    }
+
     if (!this.targetBlock || this.targetBlock.isMined || !this.targetBlock.isMarkedForMining) {
       this.clearTarget();
       return;
@@ -97,6 +120,36 @@ export class Miner {
     }
   }
 
+  updateHauling(deltaSeconds) {
+    if (!this.targetPile || this.targetPile.isCollected) {
+      this.clearTarget();
+      return;
+    }
+
+    const targetWaypoint = this.path[this.pathIndex];
+    if (!targetWaypoint) {
+      if (this.onResourceDelivered) {
+        this.onResourceDelivered(this.targetPile);
+      }
+      this.targetPile.collect();
+      this.clearTarget();
+      return;
+    }
+
+    const destination = targetWaypoint.clone();
+    destination.y = this.mesh.position.y;
+    const distance = this.mesh.position.distanceTo(destination);
+    if (distance < 0.1) {
+      this.pathIndex += 1;
+      return;
+    }
+
+    this.state = HAULING;
+    const direction = destination.sub(this.mesh.position).normalize();
+    this.mesh.position.addScaledVector(direction, this.stats.speed * deltaSeconds);
+    this.mesh.lookAt(targetWaypoint.x, this.mesh.position.y, targetWaypoint.z);
+  }
+
   hitTarget() {
     if (!this.targetBlock) {
       return;
@@ -128,6 +181,9 @@ export class Miner {
     if (shouldBeLevel > this.level) {
       this.unspentLevels += shouldBeLevel - this.level;
       this.level = shouldBeLevel;
+      if (this.onLevelUp) {
+        this.onLevelUp(this);
+      }
     }
   }
 
@@ -143,4 +199,9 @@ export class Miner {
   }
 }
 
-export const MINER_STATES = { IDLE, WALKING, MINING };
+export const MINER_STATES = {
+  IDLE,
+  WALKING,
+  MINING,
+  HAULING,
+};

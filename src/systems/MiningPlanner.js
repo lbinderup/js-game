@@ -22,8 +22,9 @@ export class MiningPlanner {
     block.markForMining(this.mineMarkColor);
   }
 
-  update() {
+  update(resourcePiles = []) {
     const markedBlocks = this.blockGrid.getMarkedBlocks();
     this.minerManager.assignBlocks(markedBlocks);
+    this.minerManager.assignResourcePiles(resourcePiles);
   }
 }
