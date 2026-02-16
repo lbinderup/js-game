@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 
 export class Block {
-  constructor({ id, type, position, size }) {
+  constructor({ id, type, position, size, gridX, gridZ }) {
     this.id = id;
     this.type = type;
     this.maxHealth = type.maxHealth;
     this.health = type.maxHealth;
+    this.gridX = gridX;
+    this.gridZ = gridZ;
+    this.isMineable = type.mineable !== false;
+    this.isRevealed = false;
     this.isMarkedForMining = false;
     this.isMined = false;
 
@@ -18,7 +22,7 @@ export class Block {
   }
 
   markForMining(markColor) {
-    if (this.isMined) {
+    if (this.isMined || !this.isMineable || !this.isRevealed) {
       return;
     }
     this.isMarkedForMining = true;
@@ -33,7 +37,7 @@ export class Block {
   }
 
   takeDamage(amount) {
-    if (this.isMined) {
+    if (this.isMined || !this.isMineable) {
       return false;
     }
 
@@ -54,5 +58,25 @@ export class Block {
     this.isMarkedForMining = false;
     this.mesh.visible = false;
     this.mesh.userData.entityType = 'empty';
+  }
+
+  setRevealed(isRevealed) {
+    this.isRevealed = isRevealed;
+    if (this.isMined) {
+      return;
+    }
+
+    if (isRevealed) {
+      this.mesh.material.color.setHex(this.type.color);
+      this.mesh.material.transparent = false;
+      this.mesh.material.opacity = 1;
+    } else {
+      this.mesh.material.color.setHex(0x111418);
+      this.mesh.material.transparent = true;
+      this.mesh.material.opacity = 0.92;
+      this.mesh.material.emissive.setHex(0x000000);
+      this.mesh.material.emissiveIntensity = 0;
+      this.isMarkedForMining = false;
+    }
   }
 }

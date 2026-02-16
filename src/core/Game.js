@@ -27,8 +27,9 @@ export class Game {
 
     this.blockGrid = new BlockGrid(this.scene, GAME_CONFIG.grid);
     this.blockGrid.generateLayer();
+    this.setupStagingArea();
 
-    this.minerManager = new MinerManager(this.scene, GAME_CONFIG.grid, GAME_CONFIG.miners);
+    this.minerManager = new MinerManager(this.scene, this.blockGrid, GAME_CONFIG.miners);
     this.minerManager.createMiners();
 
     this.pointerSelector = new PointerSelector(this.camera, this.canvas);
@@ -58,6 +59,24 @@ export class Game {
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
     this.scene.add(ground);
+  }
+
+  setupStagingArea() {
+    const { startX, endX, startZ, endZ } = this.blockGrid.layout.staging;
+    const centerX = (startX + endX) / 2;
+    const centerZ = (startZ + endZ) / 2;
+    const width = endX - startX + 1;
+    const depth = endZ - startZ + 1;
+    const center = this.blockGrid.cellToWorld(centerX, centerZ, 0.02);
+
+    const staging = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, depth),
+      new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.8 }),
+    );
+
+    staging.rotation.x = -Math.PI / 2;
+    staging.position.copy(center);
+    this.scene.add(staging);
   }
 
   installInputHandlers() {

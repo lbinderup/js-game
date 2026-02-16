@@ -1,9 +1,11 @@
 export const GAME_CONFIG = {
   grid: {
-    width: 14,
-    depth: 10,
+    width: 36,
+    depth: 28,
     blockSize: 1,
     mineMarkColor: 0xf39c12,
+    stagingSize: 6,
+    shaftLength: 8,
   },
   miners: {
     count: 3,
@@ -15,6 +17,9 @@ export const GAME_CONFIG = {
 };
 
 export const BLOCK_TYPES = {
+  BEDROCK: {
+    name: 'Bedrock', color: 0x2f3640, maxHealth: Number.POSITIVE_INFINITY, weight: 0, mineable: false,
+  },
   DIRT: { name: 'Dirt', color: 0x8e5a2a, maxHealth: 3, weight: 0.45 },
   STONE: { name: 'Stone', color: 0x7f8c8d, maxHealth: 6, weight: 0.35 },
   IRON: { name: 'Iron', color: 0x95a5a6, maxHealth: 10, weight: 0.15 },

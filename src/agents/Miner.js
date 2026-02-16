@@ -21,7 +21,10 @@ export class Miner {
     this.levelThresholds = levelThresholds;
     this.state = IDLE;
     this.targetBlock = null;
+    this.path = [];
+    this.pathIndex = 0;
     this.mineTimer = 0;
+    this.onBlockMined = null;
 
     const body = new THREE.CapsuleGeometry(0.25, 0.6, 4, 8);
     const material = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
@@ -36,13 +39,17 @@ export class Miner {
     return this.state === IDLE;
   }
 
-  assignBlock(block) {
+  assignBlock(block, path) {
     this.targetBlock = block;
+    this.path = path;
+    this.pathIndex = 0;
     this.state = WALKING;
   }
 
   clearTarget() {
     this.targetBlock = null;
+    this.path = [];
+    this.pathIndex = 0;
     this.state = IDLE;
     this.mineTimer = 0;
   }
@@ -53,11 +60,27 @@ export class Miner {
       return;
     }
 
-    const destination = this.targetBlock.mesh.position.clone();
+    const targetWaypoint = this.path[this.pathIndex];
+    const destination = (targetWaypoint ?? this.targetBlock.mesh.position).clone();
     destination.y = this.mesh.position.y;
     const distance = this.mesh.position.distanceTo(destination);
+    const miningDistance = this.mesh.position.distanceTo(this.targetBlock.mesh.position);
 
-    if (distance > 0.7) {
+    if (targetWaypoint && distance < 0.15) {
+      this.pathIndex += 1;
+      return;
+    }
+
+    if (targetWaypoint && distance > 0.1) {
+      this.state = WALKING;
+      const direction = destination.sub(this.mesh.position).normalize();
+      this.mesh.position.addScaledVector(direction, this.stats.speed * deltaSeconds);
+      const lookTarget = targetWaypoint ?? this.targetBlock.mesh.position;
+      this.mesh.lookAt(lookTarget.x, this.mesh.position.y, lookTarget.z);
+      return;
+    }
+
+    if (!targetWaypoint && miningDistance > 0.8) {
       this.state = WALKING;
       const direction = destination.sub(this.mesh.position).normalize();
       this.mesh.position.addScaledVector(direction, this.stats.speed * deltaSeconds);
@@ -86,6 +109,9 @@ export class Miner {
     if (mined) {
       this.stats.blocksMined += 1;
       this.checkLevelProgress();
+      if (this.onBlockMined) {
+        this.onBlockMined(this.targetBlock);
+      }
       this.clearTarget();
     }
   }
