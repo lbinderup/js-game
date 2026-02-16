@@ -50,26 +50,58 @@ export class BlockGrid {
       }
     }
 
+    for (let z = stagingStartZ - 1; z <= stagingEndZ + 1; z += 1) {
+      for (let x = stagingStartX - 1; x <= stagingEndX + 1; x += 1) {
+        if (z <= 0 || z >= depth - 1 || x <= 0 || x >= width - 1) {
+          continue;
+        }
+        if (z >= stagingStartZ && z <= stagingEndZ && x >= stagingStartX && x <= stagingEndX) {
+          continue;
+        }
+        cells[z][x] = { kind: 'bedrock' };
+      }
+    }
+
     const shaftStartX = stagingEndX + 1;
     const shaftEndX = shaftStartX + shaftLength - 1;
+    const shaftMinZ = centerZ - 1;
+    const shaftMaxZ = centerZ + 1;
 
     for (let x = shaftStartX; x <= shaftEndX; x += 1) {
-      cells[centerZ][x] = { kind: 'empty' };
-      if (centerZ - 1 > 0) {
-        cells[centerZ - 1][x] = { kind: 'bedrock' };
+      for (let z = shaftMinZ; z <= shaftMaxZ; z += 1) {
+        cells[z][x] = { kind: 'empty' };
       }
-      if (centerZ + 1 < depth - 1) {
-        cells[centerZ + 1][x] = { kind: 'bedrock' };
+
+      if (centerZ - 2 > 0) {
+        cells[centerZ - 2][x] = { kind: 'bedrock' };
+      }
+
+      if (centerZ + 2 < depth - 1) {
+        cells[centerZ + 2][x] = { kind: 'bedrock' };
       }
     }
 
     const digFrontX = shaftEndX + 1;
-    const digLine = [centerZ - 2, centerZ - 1, centerZ, centerZ + 1, centerZ + 2];
+    const digLine = [centerZ - 1, centerZ, centerZ + 1];
     for (const z of digLine) {
       if (z > 0 && z < depth - 1) {
         cells[z][digFrontX] = { kind: 'mineable' };
       }
     }
+
+    const dropoff = {
+      startX: stagingStartX,
+      endX: stagingStartX + 1,
+      startZ: stagingStartZ,
+      endZ: stagingStartZ + 1,
+    };
+
+    const barracks = {
+      startX: stagingStartX,
+      endX: stagingStartX,
+      startZ: stagingEndZ - 1,
+      endZ: stagingEndZ,
+    };
 
     return {
       cells,
@@ -85,6 +117,8 @@ export class BlockGrid {
         endX: shaftEndX,
         z: centerZ,
       },
+      dropoff,
+      barracks,
     };
   }
 

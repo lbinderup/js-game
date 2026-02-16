@@ -22,6 +22,8 @@
         <p>Click a miner to inspect stats and level up.</p>
         <div id="hud-stats"></div>
       </aside>
+      <div id="resource-counters"></div>
+      <div id="floating-text-root"></div>
       <div id="miner-inspector" class="hidden">
         <h2 id="miner-name"></h2>
         <ul id="miner-stat-list"></ul>
@@ -32,6 +34,13 @@
         <div id="level-screen-content"></div>
         <button id="level-up-btn">LEVEL UP</button>
         <button id="close-level-screen">Close</button>
+      </div>
+      <div id="barracks-window" class="hidden">
+        <h3>Worker Barracks</h3>
+        <p>Hire a miner to expand your operation.</p>
+        <p id="barracks-hire-cost"></p>
+        <button id="hire-worker-btn">Hire Worker</button>
+        <button id="close-barracks">Close</button>
       </div>
     </div>
     <script type="module" src="/src/main.js"></script>

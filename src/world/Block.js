@@ -60,6 +60,14 @@ export class Block {
     this.mesh.userData.entityType = 'empty';
   }
 
+  getDrop() {
+    if (!this.type.drop) {
+      return null;
+    }
+
+    return { ...this.type.drop };
+  }
+
   setRevealed(isRevealed) {
     this.isRevealed = isRevealed;
     if (this.isMined) {

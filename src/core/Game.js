@@ -5,6 +5,7 @@ import { MinerManager } from '../agents/MinerManager.js';
 import { PointerSelector } from '../systems/PointerSelector.js';
 import { MiningPlanner } from '../systems/MiningPlanner.js';
 import { UIController } from '../ui/UIController.js';
+import { ResourcePile } from '../world/ResourcePile.js';
 
 export class Game {
   constructor(canvas) {
@@ -24,12 +25,36 @@ export class Game {
 
     this.setupLighting();
     this.setupGroundPlane();
+    this.resourcePiles = [];
+    this.resources = {
+      goldOre: GAME_CONFIG.economy.startingGoldOre,
+      ironOre: 0,
+      rock: 0,
+    };
+    this.hiredMinerCount = 0;
+    this.buildings = [];
 
     this.blockGrid = new BlockGrid(this.scene, GAME_CONFIG.grid);
     this.blockGrid.generateLayer();
     this.setupStagingArea();
+    this.setupStagingBuildings();
 
-    this.minerManager = new MinerManager(this.scene, this.blockGrid, GAME_CONFIG.miners);
+    const dropoffCell = {
+      x: this.blockGrid.layout.dropoff.startX,
+      z: this.blockGrid.layout.dropoff.startZ,
+    };
+    const barracksCell = {
+      x: this.blockGrid.layout.barracks.startX,
+      z: this.blockGrid.layout.barracks.startZ,
+    };
+
+    this.minerManager = new MinerManager(this.scene, this.blockGrid, GAME_CONFIG.miners, {
+      dropoffCell,
+      barracksCell,
+      onBlockMined: (block) => this.handleBlockMined(block),
+      onResourceDelivered: (miner, inventory) => this.handleResourceDelivered(miner, inventory),
+      onMinerLevelUp: () => this.ui.showFloatingText('Level Up!', '#7bed9f'),
+    });
     this.minerManager.createMiners();
 
     this.pointerSelector = new PointerSelector(this.camera, this.canvas);
@@ -38,6 +63,8 @@ export class Game {
       miners: this.minerManager.miners,
       hudRoot: document.getElementById('hud-stats'),
     });
+    this.ui.setResources(this.resources);
+    this.ui.updateHireCost(this.getHireCost(), this.resources.goldOre);
 
     this.installInputHandlers();
     window.addEventListener('resize', () => this.handleResize());
@@ -84,6 +111,8 @@ export class Game {
       const entity = this.pointerSelector.pick(event.clientX, event.clientY, [
         ...this.blockGrid.getAllMeshes(),
         ...this.minerManager.getAllMeshes(),
+        ...this.getResourcePileMeshes(),
+        ...this.buildings.map((b) => b.mesh),
       ]);
 
       if (!entity) {
@@ -93,6 +122,12 @@ export class Game {
 
       if (entity.mesh?.userData?.entityType === 'miner' || entity.name?.startsWith('Miner')) {
         this.ui.selectMiner(entity);
+        return;
+      }
+
+      const entityType = entity.mesh?.userData?.entityType;
+      if (entityType === 'building') {
+        this.handleBuildingClick(entity.mesh.userData.entityRef);
         return;
       }
 
@@ -124,7 +159,7 @@ export class Game {
   start() {
     const tick = () => {
       const delta = this.clock.getDelta();
-      this.miningPlanner.update();
+      this.miningPlanner.update(this.resourcePiles);
       this.minerManager.update(delta);
       this.ui.renderHud();
       this.renderer.render(this.scene, this.camera);
@@ -132,5 +167,106 @@ export class Game {
     };
 
     tick();
+  }
+
+  setupStagingBuildings() {
+    const dropoff = this.blockGrid.layout.dropoff;
+    const barracks = this.blockGrid.layout.barracks;
+
+    const dropoffCenter = this.blockGrid.cellToWorld((dropoff.startX + dropoff.endX) / 2, (dropoff.startZ + dropoff.endZ) / 2, 0.2);
+    const dropoffMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 0.35, 1.8),
+      new THREE.MeshStandardMaterial({ color: 0x1abc9c }),
+    );
+    dropoffMesh.position.copy(dropoffCenter);
+    dropoffMesh.userData.entityType = 'building';
+    dropoffMesh.userData.entityRef = { kind: 'dropoff', name: 'Staging Depot', mesh: dropoffMesh };
+    this.scene.add(dropoffMesh);
+
+    const barracksCenter = this.blockGrid.cellToWorld((barracks.startX + barracks.endX) / 2, (barracks.startZ + barracks.endZ) / 2, 0.35);
+    const barracksMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.7, 1.8),
+      new THREE.MeshStandardMaterial({ color: 0xe67e22 }),
+    );
+    barracksMesh.position.copy(barracksCenter);
+    barracksMesh.userData.entityType = 'building';
+    barracksMesh.userData.entityRef = { kind: 'barracks', name: 'Worker Barracks', mesh: barracksMesh };
+    this.scene.add(barracksMesh);
+
+    this.buildings.push(
+      { kind: 'dropoff', mesh: dropoffMesh },
+      { kind: 'barracks', mesh: barracksMesh },
+    );
+  }
+
+  handleBlockMined(block) {
+    const drop = block.getDrop();
+    if (!drop) {
+      return;
+    }
+
+    const cell = { x: block.gridX, z: block.gridZ };
+    const pile = new ResourcePile({
+      id: `${drop.resource}:${Date.now()}:${Math.random()}`,
+      position: { x: cell.x, z: cell.z, world: this.blockGrid.cellToWorld(cell.x, cell.z, 0.15) },
+      drop,
+    });
+    this.resourcePiles.push(pile);
+    this.scene.add(pile.mesh);
+  }
+
+  handleResourceDelivered(miner, inventory) {
+    const labels = {
+      goldOre: 'Gold Ore',
+      ironOre: 'Iron Ore',
+      rock: 'Rock',
+    };
+
+    for (const [resource, amount] of Object.entries(inventory)) {
+      if (!amount) {
+        continue;
+      }
+      this.resources[resource] = (this.resources[resource] ?? 0) + amount;
+      this.ui.showFloatingText(`${miner.name}: +${amount} ${labels[resource] ?? resource}`, '#f1c40f');
+    }
+
+    this.ui.setResources(this.resources);
+    this.ui.updateHireCost(this.getHireCost(), this.resources.goldOre);
+    this.resourcePiles = this.resourcePiles.filter((entry) => !entry.isCollected);
+  }
+
+  getResourcePileMeshes() {
+    return this.resourcePiles.filter((pile) => !pile.isCollected).map((pile) => pile.mesh);
+  }
+
+  getHireCost() {
+    return GAME_CONFIG.economy.hireCostBase + (this.hiredMinerCount * GAME_CONFIG.economy.hireCostStep);
+  }
+
+  handleBuildingClick(building) {
+    if (building.kind !== 'barracks') {
+      return;
+    }
+
+    this.ui.openBarracks(
+      this.getHireCost(),
+      this.resources.goldOre,
+      () => this.tryHireWorker(),
+    );
+  }
+
+  tryHireWorker() {
+    const cost = this.getHireCost();
+    if (this.resources.goldOre < cost) {
+      this.ui.showFloatingText('Not enough Gold Ore', '#ff7675');
+      return;
+    }
+
+    this.resources.goldOre -= cost;
+    this.hiredMinerCount += 1;
+    this.minerManager.addMiner();
+    this.ui.setResources(this.resources);
+    this.ui.updateHireCost(this.getHireCost(), this.resources.goldOre);
+    this.ui.showFloatingText('Worker hired!', '#74b9ff');
   }
 }

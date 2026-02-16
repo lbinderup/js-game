@@ -9,11 +9,16 @@ function key(cell) {
 }
 
 export class MinerManager {
-  constructor(scene, blockGrid, minerConfig) {
+  constructor(scene, blockGrid, minerConfig, options = {}) {
     this.scene = scene;
     this.blockGrid = blockGrid;
     this.minerConfig = minerConfig;
     this.miners = [];
+    this.onBlockMined = options.onBlockMined ?? null;
+    this.onResourceDelivered = options.onResourceDelivered ?? null;
+    this.onMinerLevelUp = options.onMinerLevelUp ?? null;
+    this.dropoffCell = options.dropoffCell ?? null;
+    this.barracksCell = options.barracksCell ?? null;
   }
 
   createMiners() {
@@ -43,6 +48,21 @@ export class MinerManager {
 
       miner.onBlockMined = (block) => {
         this.blockGrid.revealWalkableCell(block.gridX, block.gridZ);
+        if (this.onBlockMined) {
+          this.onBlockMined(block);
+        }
+      };
+
+      miner.onResourceDelivered = (sourceMiner, inventory) => {
+        if (this.onResourceDelivered) {
+          this.onResourceDelivered(sourceMiner, inventory);
+        }
+      };
+
+      miner.onLevelUp = (leveledMiner) => {
+        if (this.onMinerLevelUp) {
+          this.onMinerLevelUp(leveledMiner);
+        }
       };
 
       this.miners.push(miner);
@@ -122,14 +142,30 @@ export class MinerManager {
     return bestPath.slice(1).map((cell) => this.blockGrid.cellToWorld(cell.x, cell.z, miner.mesh.position.y));
   }
 
+  findPathToCell(miner, cell) {
+    const start = this.blockGrid.worldToCell(miner.mesh.position);
+    const path = this.findPath(start, cell);
+    if (!path) {
+      return null;
+    }
+
+    return path.slice(1).map((step) => this.blockGrid.cellToWorld(step.x, step.z, miner.mesh.position.y));
+  }
+
   update(deltaSeconds) {
     for (const miner of this.miners) {
       miner.update(deltaSeconds);
     }
+
+    this.returnIdleMinersToBarracks();
   }
 
-  getIdleMiners() {
-    return this.miners.filter((miner) => miner.isIdle());
+  getAvailableMiners() {
+    return this.miners.filter((miner) => miner.canAcceptTask());
+  }
+
+  getAvailableCollectors() {
+    return this.miners.filter((miner) => miner.canAcceptTask() && miner.inventoryLoad < miner.getCarryCapacity());
   }
 
   assignBlocks(blocks) {
@@ -139,14 +175,14 @@ export class MinerManager {
         continue;
       }
 
-      const idleMiners = this.getIdleMiners();
-      if (idleMiners.length === 0) {
+      const availableMiners = this.getAvailableMiners();
+      if (availableMiners.length === 0) {
         return;
       }
 
       let chosenMiner = null;
       let chosenPath = null;
-      for (const miner of idleMiners) {
+      for (const miner of availableMiners) {
         const path = this.findPathToBlock(miner, block);
         if (!path) {
           continue;
@@ -164,7 +200,152 @@ export class MinerManager {
     }
   }
 
+  hasAvailableMiningTarget(blocks) {
+    const availableMiners = this.getAvailableMiners();
+    if (availableMiners.length === 0) {
+      return false;
+    }
+
+    for (const block of blocks) {
+      const alreadyAssigned = this.miners.some((miner) => miner.targetBlock === block);
+      if (alreadyAssigned) {
+        continue;
+      }
+
+      for (const miner of availableMiners) {
+        const path = this.findPathToBlock(miner, block);
+        if (path) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  assignResourcePiles(piles) {
+    if (!this.dropoffCell) {
+      return;
+    }
+
+    for (const pile of piles) {
+      if (pile.isCollected || pile.isClaimed) {
+        continue;
+      }
+
+      const availableMiners = this.getAvailableCollectors();
+      if (availableMiners.length === 0) {
+        return;
+      }
+
+      let chosenMiner = null;
+      let chosenToPile = null;
+      let chosenToDropoff = null;
+      for (const miner of availableMiners) {
+        const toPile = this.findPathToCell(miner, pile.cell);
+        if (!toPile) {
+          continue;
+        }
+
+        const pathFromPile = this.findPath(pile.cell, this.dropoffCell);
+        if (!pathFromPile) {
+          continue;
+        }
+
+        const toDropoff = pathFromPile
+          .slice(1)
+          .map((cell) => this.blockGrid.cellToWorld(cell.x, cell.z, miner.mesh.position.y));
+
+        const totalLength = toPile.length + toDropoff.length;
+        const currentBest = (chosenToPile?.length ?? Infinity) + (chosenToDropoff?.length ?? Infinity);
+        if (totalLength < currentBest) {
+          chosenMiner = miner;
+          chosenToPile = toPile;
+          chosenToDropoff = toDropoff;
+        }
+      }
+
+      if (chosenMiner && chosenToPile && chosenToDropoff && pile.claim()) {
+        chosenMiner.assignPile(pile, chosenToPile, chosenToDropoff, this.dropoffCell);
+      }
+    }
+  }
+
+  assignDropoffsForLoadedMiners(piles) {
+    if (!this.dropoffCell) {
+      return;
+    }
+
+    const hasFreePiles = piles.some((pile) => !pile.isCollected && !pile.isClaimed);
+    for (const miner of this.miners) {
+      if (!miner.canAcceptTask() || miner.inventoryLoad <= 0) {
+        continue;
+      }
+
+      const shouldDropoff = miner.inventoryLoad >= miner.getCarryCapacity() || !hasFreePiles;
+      if (!shouldDropoff) {
+        continue;
+      }
+
+      const pathToDropoff = this.findPathToCell(miner, this.dropoffCell);
+      if (pathToDropoff) {
+        miner.assignDropoff(pathToDropoff);
+      }
+    }
+  }
+
+  addMiner() {
+    const id = this.miners.length;
+    const { startX, startZ } = this.blockGrid.layout.staging;
+    const spawn = this.blockGrid.cellToWorld(startX, startZ, 0.6);
+    const miner = new Miner({
+      id,
+      spawnPosition: spawn,
+      baseStrength: this.minerConfig.baseStrength,
+      baseSpeed: this.minerConfig.baseSpeed,
+      levelThresholds: {
+        hitsPerLevel: this.minerConfig.hitsPerLevel,
+        minedBlocksPerLevel: this.minerConfig.minedBlocksPerLevel,
+      },
+    });
+
+    miner.onBlockMined = (block) => {
+      this.blockGrid.revealWalkableCell(block.gridX, block.gridZ);
+      if (this.onBlockMined) {
+        this.onBlockMined(block);
+      }
+    };
+    miner.onResourceDelivered = (sourceMiner, inventory) => this.onResourceDelivered?.(sourceMiner, inventory);
+    miner.onLevelUp = (leveledMiner) => this.onMinerLevelUp?.(leveledMiner);
+
+    this.miners.push(miner);
+    this.scene.add(miner.mesh);
+    return miner;
+  }
+
   getAllMeshes() {
     return this.miners.map((miner) => miner.mesh);
+  }
+
+  returnIdleMinersToBarracks() {
+    if (!this.barracksCell) {
+      return;
+    }
+
+    for (const miner of this.miners) {
+      if (!miner.isIdle() || !miner.canAcceptTask() || miner.inventoryLoad > 0) {
+        continue;
+      }
+
+      const cell = this.blockGrid.worldToCell(miner.mesh.position);
+      if (cell.x === this.barracksCell.x && cell.z === this.barracksCell.z) {
+        continue;
+      }
+
+      const returnPath = this.findPathToCell(miner, this.barracksCell);
+      if (returnPath) {
+        miner.assignReturnPath(returnPath);
+      }
+    }
   }
 }
