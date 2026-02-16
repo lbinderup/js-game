@@ -1,0 +1,120 @@
+import * as THREE from 'three';
+
+const IDLE = 'idle';
+const WALKING = 'walking';
+const MINING = 'mining';
+
+export class Miner {
+  constructor({ id, spawnPosition, baseStrength, baseSpeed, levelThresholds }) {
+    this.id = id;
+    this.name = `Miner ${id + 1}`;
+    this.level = 1;
+    this.unspentLevels = 0;
+
+    this.stats = {
+      strength: baseStrength,
+      speed: baseSpeed,
+      totalHits: 0,
+      blocksMined: 0,
+    };
+
+    this.levelThresholds = levelThresholds;
+    this.state = IDLE;
+    this.targetBlock = null;
+    this.mineTimer = 0;
+
+    const body = new THREE.CapsuleGeometry(0.25, 0.6, 4, 8);
+    const material = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
+    this.mesh = new THREE.Mesh(body, material);
+    this.mesh.position.copy(spawnPosition);
+    this.mesh.position.y = 0.6;
+    this.mesh.userData.entityType = 'miner';
+    this.mesh.userData.entityRef = this;
+  }
+
+  isIdle() {
+    return this.state === IDLE;
+  }
+
+  assignBlock(block) {
+    this.targetBlock = block;
+    this.state = WALKING;
+  }
+
+  clearTarget() {
+    this.targetBlock = null;
+    this.state = IDLE;
+    this.mineTimer = 0;
+  }
+
+  update(deltaSeconds) {
+    if (!this.targetBlock || this.targetBlock.isMined || !this.targetBlock.isMarkedForMining) {
+      this.clearTarget();
+      return;
+    }
+
+    const destination = this.targetBlock.mesh.position.clone();
+    destination.y = this.mesh.position.y;
+    const distance = this.mesh.position.distanceTo(destination);
+
+    if (distance > 0.7) {
+      this.state = WALKING;
+      const direction = destination.sub(this.mesh.position).normalize();
+      this.mesh.position.addScaledVector(direction, this.stats.speed * deltaSeconds);
+      this.mesh.lookAt(this.targetBlock.mesh.position.x, this.mesh.position.y, this.targetBlock.mesh.position.z);
+      return;
+    }
+
+    this.state = MINING;
+    this.mineTimer += deltaSeconds;
+
+    if (this.mineTimer >= 0.7) {
+      this.mineTimer = 0;
+      this.hitTarget();
+    }
+  }
+
+  hitTarget() {
+    if (!this.targetBlock) {
+      return;
+    }
+
+    this.stats.totalHits += 1;
+    const mined = this.targetBlock.takeDamage(this.stats.strength);
+    this.checkLevelProgress();
+
+    if (mined) {
+      this.stats.blocksMined += 1;
+      this.checkLevelProgress();
+      this.clearTarget();
+    }
+  }
+
+  canLevelUp() {
+    return this.unspentLevels > 0;
+  }
+
+  checkLevelProgress() {
+    const hitsProgress = Math.floor(this.stats.totalHits / this.levelThresholds.hitsPerLevel);
+    const minedProgress = Math.floor(this.stats.blocksMined / this.levelThresholds.minedBlocksPerLevel);
+    const shouldBeLevel = 1 + Math.min(hitsProgress, minedProgress);
+
+    if (shouldBeLevel > this.level) {
+      this.unspentLevels += shouldBeLevel - this.level;
+      this.level = shouldBeLevel;
+    }
+  }
+
+  spendLevelPoint() {
+    if (!this.canLevelUp()) {
+      return false;
+    }
+
+    this.stats.strength += 1;
+    this.stats.speed += 0.2;
+    this.unspentLevels -= 1;
+    return true;
+  }
+}
+
+export const MINER_STATES = { IDLE, WALKING, MINING };

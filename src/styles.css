@@ -1,0 +1,77 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #101418;
+  color: #f6f6f6;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#ui-panel,
+#miner-inspector,
+#level-screen {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid #3f4a54;
+  border-radius: 8px;
+  padding: 12px;
+  backdrop-filter: blur(3px);
+}
+
+#ui-panel {
+  top: 16px;
+  left: 16px;
+  width: 300px;
+}
+
+#miner-inspector {
+  bottom: 16px;
+  left: 16px;
+  width: 290px;
+}
+
+#level-screen {
+  right: 16px;
+  bottom: 16px;
+  width: 280px;
+}
+
+button {
+  width: 100%;
+  margin-top: 8px;
+  background: #3498db;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: 700;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #54606c;
+  cursor: default;
+}
+
+.hidden {
+  display: none;
+}
