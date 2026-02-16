@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Miner Keeper Prototype</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.170.0/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas"></canvas>
+      <aside id="ui-panel">
+        <h1>Miner Keeper</h1>
+        <p>Click and drag over blocks to mark them for mining.</p>
+        <p>Click a miner to inspect stats and level up.</p>
+        <div id="hud-stats"></div>
+      </aside>
+      <div id="miner-inspector" class="hidden">
+        <h2 id="miner-name"></h2>
+        <ul id="miner-stat-list"></ul>
+        <button id="open-level-screen">Open Stat Screen</button>
+      </div>
+      <div id="level-screen" class="hidden">
+        <h3>Stat Screen</h3>
+        <div id="level-screen-content"></div>
+        <button id="level-up-btn">LEVEL UP</button>
+        <button id="close-level-screen">Close</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
