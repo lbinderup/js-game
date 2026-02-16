@@ -200,6 +200,29 @@ export class MinerManager {
     }
   }
 
+  hasAvailableMiningTarget(blocks) {
+    const availableMiners = this.getAvailableMiners();
+    if (availableMiners.length === 0) {
+      return false;
+    }
+
+    for (const block of blocks) {
+      const alreadyAssigned = this.miners.some((miner) => miner.targetBlock === block);
+      if (alreadyAssigned) {
+        continue;
+      }
+
+      for (const miner of availableMiners) {
+        const path = this.findPathToBlock(miner, block);
+        if (path) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   assignResourcePiles(piles) {
     if (!this.dropoffCell) {
       return;

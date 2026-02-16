@@ -47,6 +47,14 @@ export class Miner {
     this.mesh.position.y = 0.6;
     this.mesh.userData.entityType = 'miner';
     this.mesh.userData.entityRef = this;
+
+    this.levelIndicator = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.14, 0),
+      new THREE.MeshStandardMaterial({ color: 0xf1c40f, emissive: 0x8a6d00, emissiveIntensity: 0.6 }),
+    );
+    this.levelIndicator.position.set(0, 0.95, 0);
+    this.levelIndicator.visible = false;
+    this.mesh.add(this.levelIndicator);
   }
 
   isIdle() {
@@ -106,6 +114,8 @@ export class Miner {
   }
 
   update(deltaSeconds) {
+    this.levelIndicator.rotation.y += deltaSeconds * 2.4;
+
     if (this.targetPile) {
       this.updateHauling(deltaSeconds);
       return;
@@ -291,6 +301,7 @@ export class Miner {
     if (shouldBeLevel > this.level) {
       this.unspentLevels += shouldBeLevel - this.level;
       this.level = shouldBeLevel;
+      this.updateLevelIndicator();
       if (this.onLevelUp) {
         this.onLevelUp(this);
       }
@@ -305,7 +316,12 @@ export class Miner {
     this.stats.strength += 1;
     this.stats.speed += 0.2;
     this.unspentLevels -= 1;
+    this.updateLevelIndicator();
     return true;
+  }
+
+  updateLevelIndicator() {
+    this.levelIndicator.visible = this.unspentLevels > 0;
   }
 }
 

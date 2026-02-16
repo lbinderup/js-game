@@ -26,7 +26,8 @@ export class MiningPlanner {
     const markedBlocks = this.blockGrid.getMarkedBlocks();
     this.minerManager.assignBlocks(markedBlocks);
 
-    if (markedBlocks.length === 0) {
+    const miningAvailable = this.minerManager.hasAvailableMiningTarget(markedBlocks);
+    if (!miningAvailable) {
       this.minerManager.assignResourcePiles(resourcePiles);
       this.minerManager.assignDropoffsForLoadedMiners(resourcePiles);
     }
